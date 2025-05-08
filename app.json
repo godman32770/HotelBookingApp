@@ -1,10 +1,10 @@
 {
   "expo": {
-    "name": "Airlineapp",
+    "name": "Hotel Booking App",
     "slug": "Airlineapp",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/logo2x.png",
+    "icon": "./assets/logo1.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {

@@ -4,14 +4,14 @@ import { initializeApp } from 'firebase/app';
 import { getDatabase } from 'firebase/database';
 
 const firebaseConfig = {
-    apiKey: "AIzaSyBlsSzuejb169-odb4LUHQ-rTmkkwcPeUU",
-    authDomain: "airflight-app.firebaseapp.com",
-    databaseURL: "https://airflight-app-default-rtdb.firebaseio.com",
-    projectId: "airflight-app",
-    storageBucket: "airflight-app.firebasestorage.app",
-    messagingSenderId: "521287660565",
-    appId: "1:521287660565:web:f040184647d83287634a1c",
-    measurementId: "G-B8MSJV46DL"
+  apiKey: "AIzaSyBZ0DgPXEowZh6V1gktOOjp1wZWK4eiruk",
+  authDomain: "airline-app-eaca4.firebaseapp.com",
+  databaseURL: "https://airline-app-eaca4-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "airline-app-eaca4",
+  storageBucket: "airline-app-eaca4.firebasestorage.app",
+  messagingSenderId: "1031280553266",
+  appId: "1:1031280553266:web:eb6b3af9d97f7f71d67b2b",
+  measurementId: "G-DMFED888HF"
 };
 
 const app = initializeApp(firebaseConfig);

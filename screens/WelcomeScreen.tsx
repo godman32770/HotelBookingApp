@@ -16,8 +16,8 @@ const WelcomeScreen = ({ navigation }: any) => {
       resizeMode="cover"
     >
       <SafeAreaView style={styles.overlay}>
-        <Text style={styles.title}>Welcome to Airline App</Text>
-        <Text style={styles.subtitle}>Book your next flight easily</Text>
+        <Text style={styles.title}>Welcome to Hotel Booking</Text>
+        <Text style={styles.subtitle}>Book your hotel with ease</Text>
 
         <TouchableOpacity
           style={styles.button}
