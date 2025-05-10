@@ -4,13 +4,15 @@ import { RouteProp, useRoute, useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../types';
 
-type HotelDetailsRouteProp = RouteProp<RootStackParamList, 'HotelDetails'>;
-type HotelDetailsNavProp = StackNavigationProp<RootStackParamList, 'HotelDetails'>;
+type HotelDetailsRouteProp = RouteProp<RootStackParamList, 'FlightDetails'>; // Changed to 'FlightDetails'
+type HotelDetailsNavProp = StackNavigationProp<RootStackParamList, 'FlightDetails'>; // Changed to 'FlightDetails'
 
 const HotelDetailsScreen = () => {
   const route = useRoute<HotelDetailsRouteProp>();
   const navigation = useNavigation<HotelDetailsNavProp>();
-  const { hotel }: any = route.params;
+  const params = route.params;
+
+  const item = 'hotel' in params ? params.hotel : 'flight' in params ? params.flight : null;
 
   const getLocationImage = (location: string) => {
     const images: Record<string, any> = {
@@ -24,6 +26,10 @@ const HotelDetailsScreen = () => {
     return images[key] || require('../assets/cities/default_flight.jpg');
   };
 
+  if (!item) {
+    return <Text>Error: No details found.</Text>;
+  }
+
   return (
     <ImageBackground
       source={require('../assets/bg.jpg')}
@@ -31,31 +37,19 @@ const HotelDetailsScreen = () => {
       resizeMode="cover"
     >
       <View style={styles.container}>
-        <Image source={getLocationImage(hotel?.location)} style={styles.bannerImage} />
-        <Text style={styles.title}>{hotel?.hotel_name}</Text>
-        <Text style={styles.info}>{hotel?.location}</Text>
-        <Text style={styles.info}>Date: {hotel?.date}</Text>
-        <Text style={styles.info}>Room Type: {hotel?.room_type}</Text>
-        <Text style={styles.info}>Price per night: ${hotel?.price}</Text>
-        <Text style={styles.info}>Availability: {hotel?.available} / {hotel?.total}</Text>
-
-        {/* The following section about booking details (name, email, booked_at) */}
-        {/* was likely specific to the flight booking flow. If you need to display */}
-        {/* similar information for hotel bookings, you'll need to ensure that */}
-        {/* the 'hotel' object passed to this screen contains those properties. */}
-        {/* Example of how you might display hotel-specific booking info if available: */}
-        {/* {hotel?.guestName && hotel?.contactEmail && hotel?.bookingTime && (
-          <View style={styles.bookingCard}>
-            <Text style={styles.bookingTitle}>Booking Details</Text>
-            <Text style={styles.bookingDetail}>Guest Name: {hotel.guestName}</Text>
-            <Text style={styles.bookingDetail}>Email: {hotel.contactEmail}</Text>
-            <Text style={styles.bookingDetail}>Booked at: {new Date(hotel.bookingTime).toLocaleString()}</Text>
-          </View>
-        )} */}
+        <Image source={getLocationImage(item.location)} style={styles.bannerImage} />
+        <Text style={styles.title}>{item.hotel_name || `${item.airline} - ${item.flight_id}`}</Text>
+        <Text style={styles.info}>{item.location || `${item.from} → ${item.to}`}</Text>
+        <Text style={styles.info}>Date: {item.date}</Text>
+        <Text style={styles.info}>
+          {item.room_type ? `Room Type: ${item.room_type}` : `Time: ${item.time}`}
+        </Text>
+        <Text style={styles.info}>Price: ${item.price || item.price_per_night}</Text>
+        {item.available && <Text style={styles.info}>Availability: {item.available} / {item.total}</Text>}
 
         <TouchableOpacity
           style={styles.button}
-          onPress={() => navigation.navigate('Booking', { hotel })}
+          onPress={() => navigation.navigate('Booking', { hotel: item })} // Assuming booking is for hotel
         >
           <Text style={styles.buttonText}>Book Now</Text>
         </TouchableOpacity>
@@ -63,6 +57,8 @@ const HotelDetailsScreen = () => {
     </ImageBackground>
   );
 };
+
+
 
 const styles = StyleSheet.create({
   container: {

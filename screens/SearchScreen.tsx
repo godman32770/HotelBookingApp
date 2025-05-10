@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -10,14 +10,19 @@ import {
   Alert,
   Image,
   ImageBackground,
+  TextInput,
   Platform,
 } from 'react-native';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import { db } from '../firebase';
 import { ref, get } from 'firebase/database';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../types';
+import { Calendar } from 'react-native-calendars';
+import { format, Locale } from 'date-fns';
+import { enUS, th } from 'date-fns/locale'; // Import locales
+
+
 interface HotelRoom {
   date: string;
   hotel_id: string;
@@ -37,6 +42,8 @@ const SearchScreen = () => {
   const [results, setResults] = useState<any[]>([]);
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [showRoomTypeModal, setShowRoomTypeModal] = useState(false);
+  const [markedDates, setMarkedDates] = useState({});
+  const [locale, setLocale] = useState<Locale>(enUS); // Default locale
 
   type SearchScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Search'>;
   const navigation = useNavigation<SearchScreenNavigationProp>();
@@ -51,7 +58,7 @@ const SearchScreen = () => {
         if (typeof raw === 'object' && raw !== null) {
           const roomsArray: HotelRoom[] = Object.values(raw) as HotelRoom[];
           const mappedRooms = roomsArray
-            .filter(item => item.location !== undefined && item.room_type !== undefined) // Filter out items with undefined location or room_type
+            .filter(item => item.location !== undefined && item.room_type !== undefined)
             .map((item) => {
               console.log('Mapping item:', item);
               return {
@@ -79,6 +86,13 @@ const SearchScreen = () => {
     fetchRooms();
   }, []);
 
+  useEffect(() => {
+      // Set the locale.  You'd normally get this from the user's settings.
+      //  For this example, I'm just setting it to English.  If you want Thai,
+      //  you would use setLocale(th);
+      setLocale(enUS);
+  }, []);
+
   const uniqueValues = (key: 'location' | 'room_type') => {
     const values = Array.from(new Set(rooms.map((r) => r[key])));
     console.log(`Unique ${key}:`, values);
@@ -86,10 +100,15 @@ const SearchScreen = () => {
   };
 
   const formatDate = (d: Date) => {
-    const เต็มปี = d.getFullYear();
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const dd = String(d.getDate()).padStart(2, '0');
-    return `${เต็มปี}-${mm}-${dd}`;
+    return format(d, 'yyyy-MM-dd', { locale });
+  };
+
+  const onDayPress = (day: any) => {
+    const selectedDate = new Date(day.dateString);
+    setDate(selectedDate);
+    setMarkedDates({
+      [day.dateString]: { selected: true, color: '#007bff', textColor: '#fff' },
+    });
   };
 
   const onSearch = () => {
@@ -122,7 +141,7 @@ const SearchScreen = () => {
       Alert.alert('No Rooms Found', 'No rooms match your search criteria.');
     }
 
-    setShowDatePicker(false); // Dismiss date picker on search
+    setShowDatePicker(false);
   };
 
   const getLocationImage = (loc: string) => {
@@ -142,7 +161,7 @@ const SearchScreen = () => {
   return (
     <ImageBackground source={require('../assets/bg.jpg')} style={styles.bg}>
       <View style={styles.container}>
-        <Text style={styles.header}>🏨  Search Hotels 🏨</Text>
+        <Text style={styles.header}>🏨  Search Hotels 🏨</Text>
 
         <View style={styles.searchBox}>
           <Text style={styles.label}>Location</Text>
@@ -151,29 +170,17 @@ const SearchScreen = () => {
           </TouchableOpacity>
 
           <Text style={styles.label}>Room Type</Text>
-          <TouchableOpacity onPress={() =>{console.log('Room Type TouchableOpacity pressed');setShowRoomTypeModal(true);}} style={styles.modalButton}>
+          <TouchableOpacity onPress={() => { console.log('Room Type TouchableOpacity pressed'); setShowRoomTypeModal(true); }} style={styles.modalButton}>
             <Text style={styles.modalButtonText}>{roomType || 'Select room type'}</Text>
           </TouchableOpacity>
 
+          <Text style={styles.label}>Date</Text>
           <TouchableOpacity
             style={styles.dateButton}
             onPress={() => setShowDatePicker(true)}
           >
-            <Text style={styles.dateButtonText}>{date.toDateString()}</Text>
+            <Text style={styles.dateButtonText}>{format(date, 'PPP', { locale })}</Text>
           </TouchableOpacity>
-
-          {showDatePicker && (
-            <DateTimePicker
-              value={date}
-              mode="date"
-              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-              onChange={(event, selectedDate) => {
-                const currentDate = selectedDate || date;
-                setShowDatePicker(Platform.OS === 'ios');
-                setDate(currentDate);
-              }}
-            />
-          )}
 
           <TouchableOpacity style={styles.searchButton} onPress={onSearch}>
             <Text style={styles.searchButtonText}>Search</Text>
@@ -232,123 +239,206 @@ const SearchScreen = () => {
             ))}
           </View>
         </Modal>
+
+        <Modal visible={showDatePicker} transparent={true} animationType="slide">
+          <View style={styles.modalContainer}>
+            <View style={styles.datePickerContainer}>
+              <Calendar
+                onDayPress={onDayPress}
+                markedDates={markedDates}
+                theme={{
+                  backgroundColor: '#ffffff',
+                  calendarBackground: '#ffffff',
+                  textSectionTitleColor: '#b6c1cd',
+                  selectedDayBackgroundColor: '#007bff',
+                  selectedDayTextColor: '#ffffff',
+                  todayTextColor: '#007bff',
+                  dayTextColor: '#2d4150',
+                  textDisabledColor: '#d9e1e8',
+                  dotColor: '#007bff',
+                  selectedDotColor: '#ffffff',
+                  arrowColor: '#007bff',
+                  monthTextColor: '#43515c',
+                  indicatorColor: '#007bff',
+                  textDayFontFamily: 'monospace',
+                  textMonthFontFamily: 'monospace',
+                  textDayHeaderFontFamily: 'monospace',
+                  textDayFontSize: 16,
+                  textMonthFontSize: 16,
+                  textDayHeaderFontSize: 16,
+                }}
+              />
+              <TouchableOpacity
+                style={styles.selectDateButton}
+                onPress={() => setShowDatePicker(false)}
+              >
+                <Text style={styles.selectDateButtonText}>Select Date</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
       </View>
     </ImageBackground>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: 'transparent',
-    padding: 20,
-  },
   bg: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    resizeMode: 'cover',
+  },
+  container: {
+    flex: 1,
+    padding: 20,
+    backgroundColor: 'rgba(255,255,255,0.8)',
+  },
+  header: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 20,
+    textAlign: 'center',
+    color: '#333',
   },
   searchBox: {
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#fff',
+    padding: 20,
     borderRadius: 10,
-    padding: 15,
     marginBottom: 20,
-    gap: 10,
   },
   label: {
     fontSize: 16,
-    marginBottom: 8,
+    marginBottom: 5,
+    color: '#555',
   },
-  modalButton: {
-    backgroundColor: '#36cfc9',
-    padding: 12,
-    borderRadius: 6,
-    marginBottom: 10,
-  },
-  modalButtonText: {
-    color: '#fff',
+  input: {
+    borderWidth: 1,
+    borderColor: '#ccc',
+    padding: 10,
+    borderRadius: 5,
+    marginBottom: 15,
     fontSize: 16,
   },
   dateButton: {
-    backgroundColor: '#36cfc9',
-    padding: 12,
-    borderRadius: 6,
-    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#ccc',
+    padding: 10,
+    borderRadius: 5,
+    marginBottom: 15,
+    fontSize: 16,
+    alignItems: 'flex-start',
   },
   dateButtonText: {
-    color: '#fff',
     fontSize: 16,
+    color: '#333',
   },
   searchButton: {
-    backgroundColor: '#36cfc9',
-    padding: 12,
-    borderRadius: 6,
+    backgroundColor: '#007bff',
+    padding: 15,
+    borderRadius: 8,
     alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 20,
   },
   searchButtonText: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
   },
   card: {
-    backgroundColor: '#f8f8f8',
+    backgroundColor: '#fff',
+    padding: 15,
     borderRadius: 10,
-    marginBottom: 12,
-    overflow: 'hidden',
-    elevation: 2,
+    marginBottom: 10,
   },
   bannerImage: {
     width: '100%',
-    height: 140,
+    height: 200,
+    borderRadius: 10,
+    marginBottom: 10,
   },
   flight: {
+    fontSize: 18,
     fontWeight: 'bold',
-    fontSize: 16,
-    marginTop: 8,
-    paddingHorizontal: 10,
+    color: '#333',
+    marginBottom: 5,
   },
   route: {
+    fontSize: 16,
+    marginBottom: 5,
     color: '#555',
-    paddingHorizontal: 10,
   },
   details: {
-    color: '#888',
-    fontSize: 12,
-    paddingHorizontal: 10,
-    marginBottom: 10,
+    fontSize: 14,
+    color: '#777',
+    marginBottom: 5,
+  },
+  price: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#28a745',
+    marginTop: 5,
   },
   modalContainer: {
-    backgroundColor: '#ffffffee',
-    marginTop: '50%',
-    borderRadius: 10,
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  modalView: {
+    backgroundColor: '#fff',
     padding: 20,
-    marginHorizontal: 20,
+    borderRadius: 10,
+    width: '90%',
+    maxHeight: '80%',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 15,
+    color: '#333',
+    textAlign: 'center',
   },
   option: {
-    backgroundColor: '#fff',
-    padding: 15,
-    borderRadius: 5,
-    marginBottom: 10,
-    width: '80%',
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
     alignItems: 'center',
   },
   optionText: {
-    fontSize: 16,
+    fontSize: 18,
+    color: '#333',
   },
-  header: {
-    fontSize: 26,
-    fontWeight: 'bold',
-    marginBottom: 10,
-    textAlign: 'center',
+  selectDateButton: {
+    backgroundColor: '#007bff',
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 15,
   },
-  price: {
-    fontSize: 16,
+  selectDateButtonText: {
+    color: '#fff',
+    fontSize: 18,
     fontWeight: 'bold',
-    color: '#36cfc9',
-    paddingHorizontal: 10,
-    paddingBottom: 10,
-  }
+  },
+  modalButton: {
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 5,
+    padding: 10,
+    marginBottom: 15,
+    alignItems: 'flex-start',
+  },
+  modalButtonText: {
+    fontSize: 16,
+    color: '#333'
+  },
+  datePickerContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    paddingBottom: 15,
+    paddingTop: 10,
+    width: '90%',
+    alignItems: 'center',
+  },
 });
+
 export default SearchScreen;
+

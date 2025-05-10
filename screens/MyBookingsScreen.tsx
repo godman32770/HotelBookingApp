@@ -9,41 +9,61 @@ import {
   Alert,
   ImageBackground,
 } from 'react-native';
-import { db } from '../firebase';
-import { ref, get, remove } from 'firebase/database';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../types';
+import { db } from '../firebase';
+import { useNavigation, useFocusEffect, RouteProp, useRoute } from '@react-navigation/native';
+import { StackNavigationProp } from '@react-navigation/stack';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Toast from 'react-native-toast-message';
+import { ref, onValue } from 'firebase/database';
+import { get,remove } from 'firebase/database';
+type MyBookingsRouteProp = RouteProp<RootStackParamList, 'MyBookings'>;
+type MyBookingsNavProp = StackNavigationProp<RootStackParamList, 'MyBookings'>;
 
 const MyBookingsScreen = () => {
   const [bookings, setBookings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const navigation = useNavigation<StackNavigationProp<RootStackParamList, 'MyBookings'>>();
+  const navigation = useNavigation<MyBookingsNavProp>();
+  const route = useRoute<MyBookingsRouteProp>();
+  const { booking } = route.params || {}; // Get the booking passed from BookingScreen
 
-  const fetchBookings = async () => {
+  const fetchBookings = useCallback(async () => {
+    setLoading(true);
     const email = await AsyncStorage.getItem('currentUser');
-    if (!email) return;
+    if (!email) {
+      setLoading(false);
+      return;
+    }
 
     const userId = email.replace(/\./g, '_');
-    const snapshot = await get(ref(db, `bookings/${userId}`));
-    if (snapshot.exists()) {
-      const data = snapshot.val();
-      const result = Object.entries(data).map(([key, value]) => {
-        if (typeof value === 'object' && value !== null) {
-          return { ...value, key };
-        }
-        return { key, invalid: true };
-      });
-      setBookings(result);
-    } else {
-      setBookings([]);
-    }
-    setLoading(false);
-  };
+    let allBookings: any[] = [];
 
-  const handleCancel = async (bookingKey: string) => {
+    // Fetch flight bookings
+    const flightSnapshot = await get(ref(db, `bookings/${userId}`));
+    if (flightSnapshot.exists()) {
+      const flightData = flightSnapshot.val();
+      const flightResults = Object.entries(flightData).map(([key, value]) =>
+        typeof value === 'object' && value !== null ? { ...value, key, type: 'flight' } : { key, invalid: true, type: 'flight' }
+      );
+      allBookings = allBookings.concat(flightResults);
+    }
+
+    // Fetch hotel bookings
+    const hotelSnapshot = await get(ref(db, `hotelBookings/${userId}`));
+    if (hotelSnapshot.exists()) {
+      const hotelData = hotelSnapshot.val();
+      const hotelResults = Object.entries(hotelData).map(([key, value]) =>
+        typeof value === 'object' && value !== null ? { ...value, key, type: 'hotel' } : { key, invalid: true, type: 'hotel' }
+      );
+      allBookings = allBookings.concat(hotelResults);
+    }
+
+    // Combine and set
+    setBookings(allBookings);
+    setLoading(false);
+  }, []);
+
+  const handleCancel = async (bookingKey: string, type: 'flight' | 'hotel') => {
     Alert.alert(
       'Cancel Booking',
       'Are you sure you want to cancel this booking?',
@@ -57,8 +77,9 @@ const MyBookingsScreen = () => {
               if (!email) return;
 
               const userId = email.replace(/\./g, '_');
-              await remove(ref(db, `bookings/${userId}/${bookingKey}`));
-              await fetchBookings();
+              const path = type === 'flight' ? `bookings/${userId}/${bookingKey}` : `hotelBookings/${userId}/${bookingKey}`;
+              await remove(ref(db, path));
+              await fetchBookings(); // Refresh bookings
               Toast.show({
                 type: 'success',
                 text1: '✅ Booking canceled successfully',
@@ -70,15 +91,30 @@ const MyBookingsScreen = () => {
             }
           },
         },
-      ]
+      ],
     );
   };
 
   useFocusEffect(
     useCallback(() => {
       fetchBookings();
-    }, [])
+    }, [fetchBookings])
   );
+
+  useEffect(() => {
+    if (booking) {
+      // Add the passed booking to the list.  Important:  Check for duplicates.
+      setBookings(prev => {
+        const alreadyExists = prev.some(item =>
+          item.type === 'hotel' && item.hotel_id === booking.hotel_id && item.date === booking.date
+        );
+        if (alreadyExists) {
+          return prev; // Don't add duplicate
+        }
+        return [{ ...booking, key: `new-${Date.now()}`, type: 'hotel' }, ...prev];
+      });
+    }
+  }, [booking]);
 
   if (loading) {
     return (
@@ -97,40 +133,54 @@ const MyBookingsScreen = () => {
         ) : (
           <FlatList
             data={bookings}
-            keyExtractor={(item, index) => index.toString()}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                onPress={() => navigation.navigate('FlightDetails', { flight: item })}
-              >
-                <View style={styles.card}>
-                  <Text style={styles.flight}>{item.airline} - {item.flight_id}</Text>
-                  <Text style={styles.route}>{item.from} → {item.to}</Text>
-                  <Text style={styles.details}>{item.date} | {item.time}</Text>
-                  <Text style={styles.details}>Booked by: {item.name} ({item.email})</Text>
-
-                  {item.booked_at && (
+            keyExtractor={(item) => item.key}
+            renderItem={({ item }) => {
+              if (item.type === 'flight') {
+                return (
+                  <View style={styles.card}>
+                    <Text style={styles.flight}>{item.airline} - {item.flight_id}</Text>
+                    <Text style={styles.route}>{item.from} → {item.to}</Text>
+                    <Text style={styles.details}>{item.date} | {item.time}</Text>
                     <Text style={styles.details}>
-                      Booked at: {new Date(item.booked_at).toLocaleString()}
+                      Booked by: {item.name} ({item.email})
                     </Text>
-                  )}
-
-                  <TouchableOpacity
-                    style={styles.cancelButton}
-                    onPress={() => handleCancel(item.key)}
-                  >
-                    <Text style={styles.cancelText}>Cancel Booking</Text>
-                  </TouchableOpacity>
-                </View>
-              </TouchableOpacity>
-            )}
+                    {item.booked_at && (
+                      <Text style={styles.details}>
+                        Booked at: {new Date(item.booked_at).toLocaleString()}
+                      </Text>
+                    )}
+                    <TouchableOpacity
+                      style={styles.cancelButton}
+                      onPress={() => handleCancel(item.key, 'flight')}
+                    >
+                      <Text style={styles.cancelText}>Cancel Booking</Text>
+                    </TouchableOpacity>
+                  </View>
+                );
+              } else if (item.type === 'hotel') {
+                return (
+                  <View style={styles.card}>
+                    <Text style={styles.hotelName}>{item.hotel_name}</Text>
+                    <Text style={styles.route}>{item.location}</Text>
+                    <Text style={styles.details}>{item.date} | {item.room_type}</Text>
+                    <Text style={styles.details}>Price: ${item.price}</Text>
+                    <TouchableOpacity
+                      style={styles.cancelButton}
+                      onPress={() => handleCancel(item.key, 'hotel')}
+                    >
+                      <Text style={styles.cancelText}>Cancel Booking</Text>
+                    </TouchableOpacity>
+                  </View>
+                );
+              }
+              return null; // Or some default/error message
+            }}
           />
         )}
       </View>
     </ImageBackground>
   );
 };
-
-export default MyBookingsScreen;
 
 const styles = StyleSheet.create({
   bg: {
@@ -147,6 +197,12 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 16,
     textAlign: 'center',
+    color: '#333',
+  },
+  center: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   card: {
     padding: 12,
@@ -157,25 +213,30 @@ const styles = StyleSheet.create({
   flight: {
     fontSize: 18,
     fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 5,
+  },
+  hotelName: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 5,
   },
   route: {
     fontSize: 16,
     marginVertical: 2,
+    color: '#555',
   },
   details: {
     fontSize: 14,
-    color: '#666',
+    color: '#777',
+    marginBottom: 3,
   },
   empty: {
     marginTop: 50,
     fontSize: 16,
     textAlign: 'center',
     color: '#888',
-  },
-  center: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   cancelButton: {
     marginTop: 10,
@@ -189,3 +250,5 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
 });
+
+export default MyBookingsScreen;
