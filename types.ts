@@ -32,8 +32,9 @@ export type RootStackParamList = {
   Tabs: { screen: 'Home' | 'Search' | 'MyBookings' } | undefined;
   Home: undefined;
   Search: undefined;
-  MyBookings: undefined;
-  FlightDetails: { flight: Flight };
-  Booking: { flight: Flight };
+  MyBookings: { booking?: any } | undefined; // Make 'booking' optional
+  FlightDetails: { flight: any } | { hotel: any };
+  Booking: { hotel: any } | { flight: any };
   HotelDetails: { hotel: Hotel }; // Update HotelDetails to reflect Hotel type
+  
 };

@@ -22,10 +22,9 @@ type HomeNavProp = StackNavigationProp<RootStackParamList, 'Home'>;
 
 const HomeScreen = () => {
   const navigation = useNavigation<HomeNavProp>();
-  const [flights, setFlights] = useState<any[]>([]);
   const [userEmail, setUserEmail] = useState('');
   const [userName, setUserName] = useState('');
-  const [rooms, setRooms] = useState<any[]>([]); // Define state for rooms
+  const [rooms, setRooms] = useState<any[]>([]); // State for rooms
 
   useEffect(() => {
     const loadUser = async () => {
@@ -42,36 +41,23 @@ const HomeScreen = () => {
       }
     };
 
-    const fetchFlights = async () => {
-      const snapshot = await get(ref(db, 'flights/'));
-      if (snapshot.exists()) {
-        const raw = snapshot.val();
-        const allFlights = Object.values(raw);
-        setFlights(allFlights);
-      }
-    };
-
     const fetchRooms = async () => {
       const snapshot = await get(ref(db, 'hotels/'));
       if (snapshot.exists()) {
         const raw = snapshot.val();
-        const allRooms = Object.entries(raw).flatMap(([date, hotelData]: [string, any]) => {
-          return Object.entries(hotelData.rooms).map(([roomType, roomDetails]: [string, any]) => ({
-            date,
-            hotel_id: hotelData.hotel_id,
-            hotel_name: hotelData.hotel_name,
-            location: hotelData.location,
-            room_type: roomType,
-            ...roomDetails,
-          }));
-        });
-        setRooms(allRooms); // Set rooms data here
+        if (Array.isArray(raw)) {
+          setRooms(raw);
+        } else {
+          console.log("Data under 'hotels/' is not an array:", raw);
+          setRooms([]);
+        }
+      } else {
+        setRooms([]);
       }
     };
 
     loadUser();
-    fetchFlights();
-    fetchRooms(); // Fetch rooms as well
+    fetchRooms(); // Fetch rooms
   }, []);
 
   const handleLogout = async () => {
@@ -80,18 +66,6 @@ const HomeScreen = () => {
       index: 0,
       routes: [{ name: 'Welcome' }],
     });
-  };
-
-  const getLocationImage = (destination: string) => {
-    const images: Record<string, any> = {
-      phuket: require('../assets/cities/phuket.jpg'),
-      bangkok: require('../assets/cities/bangkok.jpg'),
-      chiangmai: require('../assets/cities/chiangmai.jpg'),
-      krabi: require('../assets/cities/krabi.jpg'),
-      hatyai: require('../assets/cities/hatyai.jpg'),
-    };
-    const key = destination.toLowerCase().replace(/\s/g, '');
-    return images[key] || require('../assets/cities/default_flight.jpg');
   };
 
   return (
@@ -127,35 +101,18 @@ const HomeScreen = () => {
           <Text style={styles.searchButtonText}>Search Hotels</Text>
         </TouchableOpacity>
 
-        {/* Flight List */}
-        <FlatList
-          data={flights}
-          keyExtractor={(item, index) => index.toString()}
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              onPress={() => navigation.navigate('FlightDetails', { flight: item })}
-            >
-              <View style={styles.card}>
-                <Image source={getLocationImage(item.to)} style={styles.bannerImage} />
-                <Text style={styles.flight}>{item.airline} - {item.flight_id}</Text>
-                <Text style={styles.route}>{item.from} → {item.to}</Text>
-                <Text style={styles.details}>{item.date} | {item.time}</Text>
-              </View>
-            </TouchableOpacity>
-          )}
-        />
-
-        {/* Hotel Rooms Section (Example) */}
+        {/* Hotel Rooms Section */}
         <View style={styles.roomsSection}>
-          <Text style={styles.roomsTitle}>Available Rooms</Text>
+          <Text style={styles.roomsTitle}>Available Hotels</Text>
           {rooms.length > 0 ? (
             <FlatList
               data={rooms}
               keyExtractor={(item, index) => index.toString()}
               renderItem={({ item }) => (
                 <View style={styles.roomCard}>
-                  <Text style={styles.roomName}>{item.hotel_name} - {item.room_type}</Text>
+                  <Text style={styles.roomName}>{item.hotel_name}</Text>
                   <Text style={styles.roomLocation}>{item.location}</Text>
+                  <Text style={styles.roomDetails}>{item.date} | {item.room_type}</Text>
                   <Text style={styles.roomPrice}>${item.price_per_night} per night</Text>
                   <Text style={styles.roomAvailability}>
                     {item.available} out of {item.total} available
@@ -164,7 +121,7 @@ const HomeScreen = () => {
               )}
             />
           ) : (
-            <Text style={styles.noRoomsText}>No rooms available for your selected criteria.</Text>
+            <Text style={styles.noRoomsText}>No hotels available.</Text>
           )}
         </View>
       </SafeAreaView>
@@ -216,35 +173,9 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontSize: 16,
   },
-  card: {
-    backgroundColor: '#f8f8f8',
-    borderRadius: 10,
-    marginBottom: 12,
-    overflow: 'hidden',
-    elevation: 2,
-  },
-  bannerImage: {
-    width: '100%',
-    height: 140,
-  },
-  flight: {
-    fontWeight: 'bold',
-    fontSize: 16,
-    marginTop: 8,
-    paddingHorizontal: 10,
-  },
-  route: {
-    color: '#555',
-    paddingHorizontal: 10,
-  },
-  details: {
-    color: '#888',
-    fontSize: 12,
-    paddingHorizontal: 10,
-    marginBottom: 10,
-  },
   roomsSection: {
     marginTop: 20,
+    flex: 1, // Allow the FlatList to take up remaining space
   },
   roomsTitle: {
     fontSize: 22,
@@ -265,6 +196,10 @@ const styles = StyleSheet.create({
   roomLocation: {
     fontSize: 14,
     color: '#555',
+  },
+  roomDetails: {
+    fontSize: 12,
+    color: '#888',
   },
   roomPrice: {
     fontSize: 16,

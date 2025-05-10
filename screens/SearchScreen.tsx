@@ -18,9 +18,18 @@ import { ref, get } from 'firebase/database';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../types';
-
+interface HotelRoom {
+  date: string;
+  hotel_id: string;
+  hotel_name: string;
+  location: string;
+  room_type: string;
+  price_per_night: number;
+  total: number;
+  available: number;
+}
 const SearchScreen = () => {
-  const [rooms, setRooms] = useState<any[]>([]); // <-- This line defines the state for rooms
+  const [rooms, setRooms] = useState<any[]>([]);
   const [location, setLocation] = useState('');
   const [roomType, setRoomType] = useState('');
   const [date, setDate] = useState(new Date());
@@ -32,77 +41,90 @@ const SearchScreen = () => {
   type SearchScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Search'>;
   const navigation = useNavigation<SearchScreenNavigationProp>();
 
-  // Fetch rooms from Firebase and flatten them
-  useEffect(() => {
+    useEffect(() => {
     const fetchRooms = async () => {
-      const snapshot = await get(ref(db, 'hotels/'));
+      const snapshot = await get(ref(db));
+      console.log('Snapshot exists:', snapshot.exists());
       if (snapshot.exists()) {
         const raw = snapshot.val();
-        const allRooms = Object.entries(raw).flatMap(([date, hotelData]: [string, any]) => {
-          return Object.entries(hotelData.rooms).map(([roomType, roomDetails]: [string, any]) => ({
-            date,
-            hotel_id: hotelData.hotel_id,
-            hotel_name: hotelData.hotel_name,
-            location: hotelData.location,
-            room_type: roomType,
-            ...roomDetails,
-          }));
-        });
-        setRooms(allRooms); // <-- This updates the rooms state with fetched data
+        console.log('Raw data from Firebase:', raw);
+        if (typeof raw === 'object' && raw !== null) {
+          const roomsArray: HotelRoom[] = Object.values(raw) as HotelRoom[];
+          const mappedRooms = roomsArray
+            .filter(item => item.location !== undefined && item.room_type !== undefined) // Filter out items with undefined location or room_type
+            .map((item) => {
+              console.log('Mapping item:', item);
+              return {
+                date: item.date,
+                hotel_id: item.hotel_id,
+                hotel_name: item.hotel_name,
+                location: item.location,
+                room_type: item.room_type,
+                price: item.price_per_night,
+                total: item.total,
+                available: item.available,
+              };
+            });
+          setRooms(mappedRooms);
+          console.log('Rooms state set to:', mappedRooms);
+        } else {
+          console.log("Data at root is not an object:", raw);
+          setRooms([]);
+        }
+      } else {
+        setRooms([]);
+        console.log('Snapshot does not exist at root.');
       }
     };
     fetchRooms();
   }, []);
 
-  // Get unique values for location or room_type
   const uniqueValues = (key: 'location' | 'room_type') => {
-    return Array.from(
-      new Set(
-        rooms.map((r) => r[key]).filter((v) => typeof v === 'string' && v.trim().length > 0)
-      )
-    );
+    const values = Array.from(new Set(rooms.map((r) => r[key])));
+    console.log(`Unique ${key}:`, values);
+    return values;
   };
 
-  // Format the date to yyyy-mm-dd
   const formatDate = (d: Date) => {
-    const yyyy = d.getFullYear();
+    const เต็มปี = d.getFullYear();
     const mm = String(d.getMonth() + 1).padStart(2, '0');
     const dd = String(d.getDate()).padStart(2, '0');
-    return `${yyyy}-${mm}-${dd}`;
+    return `${เต็มปี}-${mm}-${dd}`;
   };
 
-  // Filter the rooms based on selected filters
   const onSearch = () => {
-    const formattedDate = formatDate(date);
-    const selectedMonth = date.getMonth();
-    const selectedYear = date.getFullYear();
+    console.log('Searching with:', { location, roomType, date: formatDate(date) });
+    console.log('First room in state:', rooms[0]);
 
-    const filtered = rooms.filter((r) => {
-      const roomDate = new Date(r.date);
-      return (
-        r.location === location &&
-        r.room_type === roomType &&
-        roomDate.getMonth() === selectedMonth &&
-        roomDate.getFullYear() === selectedYear
-      );
-    });
-
-    const sameDayResults = filtered.filter(r => r.date === formattedDate);
-
-    if (filtered.length === 0) {
-      Alert.alert('No Rooms Found', 'There are no rooms in this month.');
-      setResults([]);
+    if (!location || !roomType) {
+      Alert.alert('Invalid selection', 'Please select location and room type.');
       return;
     }
 
-    if (sameDayResults.length === 0) {
-      Alert.alert('No Rooms on Selected Date', 'Try a different day within the same month.');
+    const formattedDate = formatDate(date);
+
+    const filtered = rooms.filter((r) => {
+      const roomDate = r.date;
+      const locationMatch = !location || r.location?.toLowerCase() === location?.toLowerCase();
+      const roomTypeMatch = !roomType || r.room_type?.toLowerCase() === roomType?.toLowerCase();
+      const dateMatch = roomDate === formattedDate;
+
+      console.log('Checking room:', r.hotel_name, r.location, r.room_type, r.date, 'Matches:', locationMatch, roomTypeMatch, dateMatch);
+
+      return locationMatch && roomTypeMatch && dateMatch;
+    });
+
+    setResults(filtered);
+
+    console.log('Search results:', filtered);
+
+    if (filtered.length === 0) {
+      Alert.alert('No Rooms Found', 'No rooms match your search criteria.');
     }
 
-    setResults(sameDayResults);
+    setShowDatePicker(false); // Dismiss date picker on search
   };
 
-  // Get location image
   const getLocationImage = (loc: string) => {
     if (!loc) return require('../assets/cities/default_flight.jpg');
     const images: Record<string, any> = {
@@ -115,7 +137,8 @@ const SearchScreen = () => {
     const key = loc.toLowerCase().replace(/\s/g, '');
     return images[key] || require('../assets/cities/default_flight.jpg');
   };
-
+  console.log('All Rooms:', rooms);
+  console.log('Unique Locations:', uniqueValues('location'));
   return (
     <ImageBackground source={require('../assets/bg.jpg')} style={styles.bg}>
       <View style={styles.container}>
@@ -123,12 +146,12 @@ const SearchScreen = () => {
 
         <View style={styles.searchBox}>
           <Text style={styles.label}>Location</Text>
-          <TouchableOpacity onPress={() => setShowLocationModal(true)} style={styles.modalButton}>
+          <TouchableOpacity onPress={() => { console.log('Location TouchableOpacity pressed'); setShowLocationModal(true); }} style={styles.modalButton}>
             <Text style={styles.modalButtonText}>{location || 'Select location'}</Text>
           </TouchableOpacity>
 
           <Text style={styles.label}>Room Type</Text>
-          <TouchableOpacity onPress={() => setShowRoomTypeModal(true)} style={styles.modalButton}>
+          <TouchableOpacity onPress={() =>{console.log('Room Type TouchableOpacity pressed');setShowRoomTypeModal(true);}} style={styles.modalButton}>
             <Text style={styles.modalButtonText}>{roomType || 'Select room type'}</Text>
           </TouchableOpacity>
 
@@ -161,7 +184,7 @@ const SearchScreen = () => {
           data={results}
           keyExtractor={(item, index) => index.toString()}
           renderItem={({ item }) => (
-            <TouchableOpacity onPress={() => navigation.navigate('HotelDetails', { hotel: item })}>
+            <TouchableOpacity onPress={() => navigation.navigate('FlightDetails', { hotel: item })}>
               <View style={styles.card}>
                 <Image source={getLocationImage(item.location)} style={styles.bannerImage} />
                 <Text style={styles.flight}>{item.hotel_name}</Text>
@@ -170,7 +193,6 @@ const SearchScreen = () => {
                 <Text style={styles.price}>${item.price}</Text>
               </View>
             </TouchableOpacity>
-
           )}
         />
 
@@ -183,6 +205,7 @@ const SearchScreen = () => {
                 onPress={() => {
                   setLocation(city);
                   setShowLocationModal(false);
+                  console.log(`showLocationModal set to false, location set to: ${city}`);
                 }}
               >
                 <Text style={styles.optionText}>{city}</Text>
@@ -198,8 +221,10 @@ const SearchScreen = () => {
                 key={type}
                 style={styles.option}
                 onPress={() => {
+                  console.log(`Room Type pressed: ${type}`);
                   setRoomType(type);
                   setShowRoomTypeModal(false);
+                  console.log(`showRoomTypeModal set to false, roomType set to: ${type}`);
                 }}
               >
                 <Text style={styles.optionText}>{type}</Text>
@@ -212,13 +237,11 @@ const SearchScreen = () => {
   );
 };
 
-export default SearchScreen;
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: 'transparent',
-    paddingHorizontal: 16,
+    padding: 20,
   },
   bg: {
     flex: 1,
@@ -226,11 +249,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   searchBox: {
-    width: '100%',
-    backgroundColor: '#fff',
+    backgroundColor: '#f5f5f5',
     borderRadius: 10,
-    padding: 20,
+    padding: 15,
     marginBottom: 20,
+    gap: 10,
   },
   label: {
     fontSize: 16,
@@ -297,10 +320,11 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   modalContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    backgroundColor: '#ffffffee',
+    marginTop: '50%',
+    borderRadius: 10,
+    padding: 20,
+    marginHorizontal: 20,
   },
   option: {
     backgroundColor: '#fff',
@@ -327,3 +351,4 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
   }
 });
+export default SearchScreen;
