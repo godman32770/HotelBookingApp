@@ -3,6 +3,10 @@ import { View, Text, StyleSheet, Image, TouchableOpacity, ImageBackground } from
 import { RouteProp, useRoute, useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../types';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { set, ref } from 'firebase/database';
+import { db } from '../firebase';
+import { Alert } from 'react-native';
 
 type BookingRouteProp = RouteProp<RootStackParamList, 'Booking'>;
 type BookingNavProp = StackNavigationProp<RootStackParamList, 'Booking'>;
@@ -50,11 +54,28 @@ const BookingScreen = () => {
         <TouchableOpacity
           style={styles.button}
           // The onPress action should likely navigate to a confirmation or booking details screen
-          onPress={() => {
-            console.log('Booking confirmed for:', hotel);
-            navigation.navigate('MyBookings');
-            // You might also want to save the booking details to Firebase here
-          }}
+         onPress={async () => {
+              const email = await AsyncStorage.getItem('currentUser');
+              if (!email) return;
+
+              const userId = email.replace(/\./g, '_');
+              const bookingKey = `${hotel.hotel_id}_${hotel.date}`; // Simple key. You can also use push().
+
+              const bookingData = {
+                ...hotel,
+                booked_at: Date.now(), // optional: timestamp
+              };
+
+              try {
+                await set(ref(db, `hotelBookings/${userId}/${bookingKey}`), bookingData);
+                console.log('Booking saved:', bookingData);
+                navigation.navigate('MyBookings');
+              } catch (error) {
+                console.error('Booking failed:', error);
+                Alert.alert('Error', 'Failed to save booking.');
+              }
+            }}
+
         >
           <Text style={styles.buttonText}>Book Now</Text>
         </TouchableOpacity>

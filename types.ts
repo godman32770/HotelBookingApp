@@ -34,7 +34,6 @@ export type RootStackParamList = {
   Search: undefined;
   MyBookings: { booking?: any } | undefined; // Make 'booking' optional
   FlightDetails: { flight: any } | { hotel: any };
-  Booking: { hotel: any } | { flight: any };
+  Booking: { hotel: any; date: string } | { flight: any }; // Modified Booking type
   HotelDetails: { hotel: Hotel }; // Update HotelDetails to reflect Hotel type
-  
-};
+ };
