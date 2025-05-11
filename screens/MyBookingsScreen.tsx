@@ -15,7 +15,7 @@
  import { StackNavigationProp } from '@react-navigation/stack';
  import AsyncStorage from '@react-native-async-storage/async-storage';
  import Toast from 'react-native-toast-message';
- import { ref, onValue } from 'firebase/database';
+ import { ref } from 'firebase/database';
  import { get, remove } from 'firebase/database';
  type MyBookingsRouteProp = RouteProp<RootStackParamList, 'MyBookings'>;
  type MyBookingsNavProp = StackNavigationProp<RootStackParamList, 'MyBookings'>;
