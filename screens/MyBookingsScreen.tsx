@@ -248,6 +248,8 @@ const styles = StyleSheet.create({
   },
   bookingId: {
     fontSize: 12,
+
+    
     color: '#999',
     marginTop: 5,
     marginBottom: 8,

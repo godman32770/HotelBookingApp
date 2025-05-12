@@ -9,7 +9,7 @@ import LoginScreen from './screens/LoginScreen';
 import SignupScreen from './screens/SignupScreen';
 import WelcomeScreen from './screens/WelcomeScreen';
 import SearchScreen from './screens/SearchScreen';
-import FlightDetailsScreen from './screens/FlightDetailsScreen';
+import HotelDetailsScreen from './screens/HotelDetailsScreen';
 import BookingScreen from './screens/BookingScreen';
 import MyBookingsScreen from './screens/MyBookingsScreen';
 import HomeScreen from './screens/HomeScreen';
@@ -51,7 +51,7 @@ export default function App() {
         <Stack.Screen name="Signup" component={SignupScreen} options={{ headerShown: false }} />
         <Stack.Screen name="Welcome" component={WelcomeScreen}options={{ headerShown: false }}  />
         <Stack.Screen name="Search" component={SearchScreen} />
-        <Stack.Screen name="FlightDetails" component={FlightDetailsScreen} />
+        <Stack.Screen name="HotelDetails" component={HotelDetailsScreen} />
         <Stack.Screen name="Booking" component={BookingScreen} />
         <Stack.Screen name="MyBookings" component={MyBookingsScreen} />
         <Stack.Screen name="Home" component={HomeScreen} />
