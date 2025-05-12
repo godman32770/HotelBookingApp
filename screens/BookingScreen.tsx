@@ -133,6 +133,9 @@ const BookingScreen = () => {
         `Your stay at ${hotel?.hotel_name} has been successfully booked.`,
         [{ text: 'View My Bookings', onPress: () => navigation.navigate('MyBookings') }]
       );
+      window.alert('Booking Confirmed!\nYour stay has been successfully booked.');
+      navigation.navigate('MyBookings');
+
       
     } catch (error) {
       console.error('Booking failed:', error);
@@ -205,6 +208,7 @@ const BookingScreen = () => {
             )}
             
             <TouchableOpacity
+            
               style={[
                 styles.button, 
                 !isRoomAvailable && styles.disabledButton,
@@ -212,6 +216,8 @@ const BookingScreen = () => {
               ]}
               disabled={!isRoomAvailable || isSubmitting}
               onPress={handleBooking}
+              
+              
             >
               {isSubmitting ? (
                 <View style={styles.buttonContent}>
@@ -220,7 +226,9 @@ const BookingScreen = () => {
                 </View>
               ) : (
                 <Text style={styles.buttonText}>
+                  
                   {isRoomAvailable ? 'Confirm Booking' : 'Unavailable'}
+                  
                 </Text>
               )}
             </TouchableOpacity>

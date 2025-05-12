@@ -26,6 +26,7 @@ export type Navigation = {
 };
 
 export type RootStackParamList = {
+  HotelSearch: undefined;
   Welcome: undefined;
   Login: undefined;
   Signup: undefined;

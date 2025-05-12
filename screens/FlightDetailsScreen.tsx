@@ -49,7 +49,8 @@ const HotelDetailsScreen = () => {
 
         <TouchableOpacity
           style={styles.button}
-          onPress={() => navigation.navigate('Booking', { hotel: item })} // Assuming booking is for hotel
+          onPress={() => navigation.navigate('Booking', { hotel: item, date: item.date })}
+
         >
           <Text style={styles.buttonText}>Book Now</Text>
         </TouchableOpacity>
