@@ -1,28 +1,42 @@
- import React, { useEffect, useState, useCallback } from 'react';
- import {
+import React, { useEffect, useState, useCallback } from 'react';
+import {
   View,
   Text,
   FlatList,
   StyleSheet,
   ActivityIndicator,
   TouchableOpacity,
-  Alert,
   ImageBackground,
- } from 'react-native';
- import { RootStackParamList } from '../types';
- import { db } from '../firebase';
- import { useNavigation, useFocusEffect, RouteProp, useRoute } from '@react-navigation/native';
- import { StackNavigationProp } from '@react-navigation/stack';
- import AsyncStorage from '@react-native-async-storage/async-storage';
- import Toast from 'react-native-toast-message';
- import { ref } from 'firebase/database';
- import { get, remove } from 'firebase/database';
- type MyBookingsRouteProp = RouteProp<RootStackParamList, 'MyBookings'>;
- type MyBookingsNavProp = StackNavigationProp<RootStackParamList, 'MyBookings'>;
+} from 'react-native';
+import { RootStackParamList } from '../types';
+import { db } from '../firebase';
+import { useNavigation, useFocusEffect, RouteProp, useRoute } from '@react-navigation/native';
+import { StackNavigationProp } from '@react-navigation/stack';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import Toast from 'react-native-toast-message';
+import { ref, get, remove } from 'firebase/database';
+import Modal from 'react-native-modal';
 
- const MyBookingsScreen = () => {
+type HotelBooking = {
+  date: string;
+  hotel_id: string;
+  hotel_name: string;
+  location: string;
+  room_type: string;
+  total: number;
+  available: number;
+  price_per_night: number;
+};
+
+type MyBookingsRouteProp = RouteProp<RootStackParamList, 'MyBookings'>;
+type MyBookingsNavProp = StackNavigationProp<RootStackParamList, 'MyBookings'>;
+
+const MyBookingsScreen = () => {
   const [bookings, setBookings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isModalVisible, setModalVisible] = useState(false);
+  const [selectedBookingKey, setSelectedBookingKey] = useState<string | null>(null);
+
   const navigation = useNavigation<MyBookingsNavProp>();
   const route = useRoute<MyBookingsRouteProp>();
   const { booking } = route.params || {};
@@ -30,14 +44,13 @@
   useEffect(() => {
     if (booking) {
       setBookings(prev => {
-        const newBooking = booking;
         const alreadyExists = prev.some(item =>
           item.type === 'hotel' &&
-          item.hotel_id === newBooking.hotel_id &&
-          item.date === newBooking.date
+          item.hotel_id === booking.hotel_id &&
+          item.date === booking.date
         );
         if (!alreadyExists) {
-          return [{ ...newBooking, key: `temp-${Date.now()}`, type: 'hotel' }, ...prev];
+          return [{ ...booking, key: `temp-${Date.now()}`, type: 'hotel' }, ...prev];
         }
         return prev;
       });
@@ -46,6 +59,7 @@
 
   const fetchBookings = useCallback(async () => {
     setLoading(true);
+    
     const email = await AsyncStorage.getItem('currentUser');
     if (!email) {
       setLoading(false);
@@ -55,64 +69,74 @@
     const userId = email.replace(/\./g, '_');
     let fetchedBookings: any[] = [];
 
-    // Fetch hotel bookings
-    const hotelSnapshot = await get(ref(db, `hotelBookings/${userId}`));
-    if (hotelSnapshot.exists()) {
-      const hotelData = hotelSnapshot.val();
-      const hotelResults = Object.entries(hotelData).map(([key, value]) =>
-        typeof value === 'object' && value !== null ? { ...value, key, type: 'hotel' } : { key, invalid: true, type: 'hotel' }
-      );
-      fetchedBookings = fetchedBookings.concat(hotelResults);
+    try {
+      const fullSnapshot = await get(ref(db, `hotelBookings/${userId}`));
+      console.log('🧩 Full user bookings:', fullSnapshot.val());
+
+      if (fullSnapshot.exists()) {
+        const hotelData = fullSnapshot.val();
+        console.log('✅ Actual Firebase keys:', Object.keys(hotelData));
+
+        const hotelResults = Object.entries(hotelData).map(([firebaseKey, bookingData]) => {
+          const typedBooking = bookingData as HotelBooking;
+          return {
+            ...typedBooking,
+            key: firebaseKey,
+            type: 'hotel',
+            hotel_name: typedBooking.hotel_name,
+            location: typedBooking.location,
+            room_type: typedBooking.room_type,
+            price: typedBooking.price_per_night,
+          };
+        });
+
+        fetchedBookings = fetchedBookings.concat(hotelResults);
+      }
+
+      setBookings(fetchedBookings);
+    } catch (error) {
+      console.error('Fetch error:', error);
     }
 
-    setBookings(prevBookings => {
-    // Merge fetched bookings, giving priority to those already in state (including the new one)
-    const mergedBookings = [...prevBookings];
-    fetchedBookings.forEach(fetchedItem => {
-      const exists = mergedBookings.some(item => item.key === fetchedItem.key);
-      if (!exists && !fetchedItem.invalid && fetchedItem.type === 'hotel') { // Corrected line
-        mergedBookings.push(fetchedItem);
-      }
-    });
-    return mergedBookings;
-  });
-  setLoading(false);
-}, []);
-  const handleCancel = async (bookingKey: string, type: 'flight' | 'hotel') => {
-    Alert.alert(
-      'Cancel Booking',
-      'Are you sure you want to cancel this booking?',
-      [
-        { text: 'No', style: 'cancel' },
-        {
-          text: 'Yes',
-          onPress: async () => {
-            try {
-              const email = await AsyncStorage.getItem('currentUser');
-              if (!email) return;
+    setLoading(false);
+  }, []);
 
-              const userId = email.replace(/\./g, '_');
-              const path = type === 'flight' ? `bookings/<span class="math-inline">\{userId\}/</span>{bookingKey}` : `hotelBookings/<span class="math-inline">\{userId\}/</span>{bookingKey}`;
-              await remove(ref(db, path));
-              await fetchBookings(); // Refresh bookings
-              Toast.show({
-                type: 'success',
-                text1: '✅ Booking canceled successfully',
-                position: 'bottom',
-              });
-            } catch (error) {
-              console.error('Cancel Error:', error);
-              Alert.alert('Error', 'Failed to cancel booking.');
-            }
-          },
-        },
-      ],
-    );
+  const confirmCancel = (bookingKey: string) => {
+    setSelectedBookingKey(bookingKey);
+    setModalVisible(true);
+  };
+
+  const handleConfirmedCancel = async () => {
+    if (!selectedBookingKey) return;
+    try {
+      const email = await AsyncStorage.getItem('currentUser');
+      if (!email) return;
+
+      const userId = email.replace(/\./g, '_');
+      await remove(ref(db, `hotelBookings/${userId}/${selectedBookingKey}`));
+      console.log(`Removed booking: hotelBookings/${userId}/${selectedBookingKey}`);
+
+      await fetchBookings();
+
+      Toast.show({
+        type: 'success',
+        text1: '✅ Booking canceled successfully',
+        position: 'bottom',
+      });
+    } catch (error) {
+      console.error('Cancel Error:', error);
+      Toast.show({
+        type: 'error',
+        text1: '❌ Failed to cancel booking',
+      });
+    } finally {
+      setModalVisible(false);
+      setSelectedBookingKey(null);
+    }
   };
 
   useFocusEffect(
     useCallback(() => {
-      console.log('MyBookingsScreen focused, route params:', route.params);
       fetchBookings();
     }, [fetchBookings])
   );
@@ -134,16 +158,19 @@
         ) : (
           <FlatList
             data={bookings.filter(item => item.type === 'hotel')}
-            keyExtractor={(item) => item.key}
+            keyExtractor={item => item.key}
             renderItem={({ item }) => (
               <View style={styles.card}>
                 <Text style={styles.hotelName}>{item.hotel_name}</Text>
                 <Text style={styles.route}>{item.location}</Text>
-                <Text style={styles.details}>{item.date} | {item.room_type}</Text>
+                <Text style={styles.details}>
+                  {item.date} | {item.room_type}
+                </Text>
                 <Text style={styles.details}>Price: ${item.price}</Text>
+                <Text style={styles.bookingId}>Booking ID: {item.key.split('_')[0]}</Text>
                 <TouchableOpacity
                   style={styles.cancelButton}
-                  onPress={() => handleCancel(item.key, 'hotel')}
+                  onPress={() => confirmCancel(item.key)}
                 >
                   <Text style={styles.cancelText}>Cancel Booking</Text>
                 </TouchableOpacity>
@@ -151,11 +178,30 @@
             )}
           />
         )}
+
+        {/* Cancel Confirmation Modal */}
+        <Modal isVisible={isModalVisible}>
+          <View style={styles.modal}>
+            <Text style={styles.modalTitle}>Cancel Booking</Text>
+            <Text style={styles.modalMessage}>Are you sure you want to cancel this booking?</Text>
+            <View style={styles.modalButtons}>
+              <TouchableOpacity onPress={() => setModalVisible(false)}>
+                <Text style={styles.modalCancel}>No</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleConfirmedCancel}>
+                <Text style={styles.modalConfirm}>Yes</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
       </View>
     </ImageBackground>
   );
- };
- const styles = StyleSheet.create({
+};
+
+export default MyBookingsScreen;
+
+const styles = StyleSheet.create({
   bg: {
     flex: 1,
     resizeMode: 'cover',
@@ -178,10 +224,11 @@
     alignItems: 'center',
   },
   card: {
-    padding: 12,
-    marginBottom: 10,
+    padding: 16,
+    marginBottom: 12,
     backgroundColor: '#f1f1f1',
     borderRadius: 8,
+    elevation: 2,
   },
   hotelName: {
     fontSize: 18,
@@ -198,6 +245,12 @@
     fontSize: 14,
     color: '#777',
     marginBottom: 3,
+  },
+  bookingId: {
+    fontSize: 12,
+    color: '#999',
+    marginTop: 5,
+    marginBottom: 8,
   },
   empty: {
     marginTop: 50,
@@ -216,6 +269,33 @@
     color: '#fff',
     fontWeight: 'bold',
   },
- });
-
- export default MyBookingsScreen;
+  modal: {
+    backgroundColor: 'white',
+    borderRadius: 10,
+    padding: 20,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  modalMessage: {
+    fontSize: 16,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+  },
+  modalCancel: {
+    fontSize: 16,
+    color: '#888',
+  },
+  modalConfirm: {
+    fontSize: 16,
+    color: '#ff4d4f',
+    fontWeight: 'bold',
+  },
+});
